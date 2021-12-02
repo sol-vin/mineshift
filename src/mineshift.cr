@@ -9,6 +9,7 @@ module Mineshift
   # TODO: Actually implement this lol!
   # Debug mode on or off
   DEBUG = true
+  MONITOR = 0
 
   module Beam
     # Minimum ratio of block size to beam height
@@ -184,7 +185,7 @@ module Mineshift
   class_getter camera = Rl::Camera2D.new
 
   # How much should we upscale/downscale the image
-  class_property scale_ratio = 1.0
+  class_property scale_ratio = 4.0
   # The virtual screen width
   class_property virtual_screen_width : Int32 = (1280/scale_ratio).to_i
   # The virtual screen height
@@ -794,6 +795,16 @@ module Mineshift
   def self.run(seed = 1_000_000)
     Rl.init_window(screen_width, screen_height, "Mineshift(#{seed})")
     Rl.set_target_fps(60)
+
+    Rl.toggle_fullscreen
+    sleep 0.1
+
+    
+    puts "#{Rl.get_monitor_width(MONITOR)}x#{Rl.get_monitor_height(MONITOR)}"
+
+    Rl.set_window_size(Rl.get_monitor_width(MONITOR), Rl.get_monitor_height(MONITOR))
+    @@virtual_screen_width = (Rl.get_monitor_width(MONITOR)/scale_ratio).to_i
+    @@virtual_screen_height = (Rl.get_monitor_height(MONITOR)/scale_ratio).to_i
 
     Mineshift.setup(seed)
 
