@@ -1,22 +1,20 @@
-# helloworld
+# Mineshift
 
-TODO: Write a description here
-
-## Installation
-
-TODO: Write installation instructions here
+An interactive art piece. Explore an endless chasm up and down. See bridges, beams, and other features
 
 ## Usage
 
-TODO: Write usage instructions here
+1. Install [raylib](https://github.com/sol-vin/raylib-cr#installation)
+2. `shards install`
+3. `crystal run ./src/mineshift`
 
 ## Development
 
-TODO: Write development instructions here
+IDK
 
 ## Contributing
 
-1. Fork it (<https://github.com/your-github-user/helloworld/fork>)
+1. Fork it (<https://github.com/sol-vin/mineshift/fork>)
 2. Create your feature branch (`git checkout -b my-new-feature`)
 3. Commit your changes (`git commit -am 'Add some feature'`)
 4. Push to the branch (`git push origin my-new-feature`)
@@ -24,4 +22,4 @@ TODO: Write development instructions here
 
 ## Contributors
 
-- [Ian Rash](https://github.com/your-github-user) - creator and maintainer
+- [Ian Rash](https://github.com/sol-vin) - creator and maintainer
