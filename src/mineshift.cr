@@ -10,12 +10,29 @@ module Mineshift
   # Debug mode on or off
   DEBUG = true
   MONITOR = 0
+  Y_FRICTION = 0.9
+
+  X_MOVEMENT_FACTOR = 10
+  MAX_X_SCREEN_RATIO = 0.04
+
+  module Bridge
+    LAYER = 2
+    MAX_ANGLE = 30
+    MIN_HEIGHT_RATIO = 0.20
+    MAX_HEIGHT_RATIO = 0.75
+    COLLISION_SEGMENT_RATIO = 0.08
+  end
 
   module Beam
     # Minimum ratio of block size to beam height
     MIN_RATIO = 0.1
     # Maximum ratio of block size to beam height
     MAX_RATIO = 0.5
+
+    MIN_HEIGHT_RATIO = 0.20
+    MAX_HEIGHT_RATIO = 0.70
+
+    CHANCE = 5
   end
 
   # Layer data and information.
@@ -37,7 +54,6 @@ module Mineshift
         max_blocks:     4,
         block_size:     ((Mineshift.virtual_screen_width/2)*SIZES[0]).to_i,
         deviation:      4,
-        window_padding: 0.4,
       },
 
       1 => {
@@ -45,7 +61,6 @@ module Mineshift
         max_blocks:     3,
         block_size:     ((Mineshift.virtual_screen_width/2)*SIZES[1]).to_i,
         deviation:      2,
-        window_padding: 0.3,
       },
 
       2 => {
@@ -53,7 +68,6 @@ module Mineshift
         max_blocks:     3,
         block_size:     ((Mineshift.virtual_screen_width/2)*SIZES[2]).to_i,
         deviation:      3,
-        window_padding: 0.25,
       },
 
       3 => {
@@ -61,7 +75,6 @@ module Mineshift
         max_blocks:     7,
         block_size:     ((Mineshift.virtual_screen_width/2)*SIZES[3]).to_i,
         deviation:      2,
-        window_padding: 0.2,
       },
     }
   end
@@ -85,15 +98,20 @@ module Mineshift
     WINDOW           =  0.224673_f32
     WINDOW_TYPE      = 0.3652563_f32
     WINDOW_SUBDIVIDE =  0.381922_f32
+    OUTER_WINDOW = 0.178290_f32
 
     CIRCLE_WINDOW_TYPE               = 0.002372_f32
     CIRCLE_WINDOW_STRUT_PARTS_NUMBER =  0.20302_f32
     CIRCLE_WINDOW_STRUT_PARTS        =  0.20302_f32
     SQUARE_WINDOW_TYPE               =  0.26261_f32
+
+    ROPE = 0.76772891_f32
+    ROPE_THICKNESS = 0.17231_f32
+    ROPE_LENGTH = 0.192288_f32
   end
 
   # Window information
-  module Windows
+  module Window
     # Chance to spawn a window
     CHANCE = 1
     # Chance to spawn a window out of how many total?
@@ -106,31 +124,45 @@ module Mineshift
     # Maximum circle parts for :strut
     CIRCLE_MAX_PARTS = 5
 
+    RATIO = 2.0
+
+    PADDING_RATIO = 0.2
+
     # All the windows made into procs that take a x, y, w, h value and fits the window in that rectangle.
     ALL = [
       # Square window
+      # ->(layer : UInt8, x : Float32, y : Float32, w : Float32, h : Float32) {
+      #   padding = w * PADDING_RATIO
+
+      #   Rl.draw_rectangle(x + padding, y + padding, w - (padding*2), h - (padding*2), Rl::BLACK)
+
+      #   if Mineshift.perlin.prng_int(x.to_i, y.to_i, 0, 3, Seeds::SQUARE_WINDOW_TYPE).zero?
+      #     center_square_w = w / (4.0 + (1.0 - (layer/Layer::MAX)))
+
+      #     center_square_x = x + w / 2.0 - (center_square_w) / 2.0
+      #     center_square_y = y + h / 2.0 - (center_square_w) / 2.0
+      #     Rl.draw_rectangle(center_square_x, center_square_y, center_square_w, center_square_w, Rl::WHITE)
+      #   end
+
+      #   Rl.draw_rectangle_lines(x, y, w, h, Rl::MAGENTA)
+
+      # },
+
+      # Regular window
       ->(layer : UInt8, x : Float32, y : Float32, w : Float32, h : Float32) {
-        padding = w * Layer::DATA[layer][:window_padding]
+        padding = w * PADDING_RATIO
 
-        Rl.draw_rectangle(x + padding, y + padding, w - (padding*2), h - (padding*2), Rl::BLACK)
-
-        if Mineshift.perlin.prng_int(x.to_i, y.to_i, 0, 3, Seeds::SQUARE_WINDOW_TYPE).zero?
-          center_square_w = w / (4.0 + (1.0 - (layer/Layer::MAX)))
-
-          center_square_x = x + w / 2.0 - (center_square_w) / 2.0
-          center_square_y = y + h / 2.0 - (center_square_w) / 2.0
-          Rl.draw_rectangle(center_square_x, center_square_y, center_square_w, center_square_w, Rl::WHITE)
+        if Mineshift.perlin.prng_item(x.to_i, y.to_i, layer.to_i, [true, false], Seeds::OUTER_WINDOW)
+          Rl.draw_circle(x + w / 2.0, y + h / 2.0, (w/2.0) - padding, Rl::BLACK)
+        else
+          r = Rl::Rectangle.new(
+            x: x + padding,
+            y: y + padding,
+            width: w - (padding*2.0),
+            height: h - (padding*2.0)
+          )
+          Rl.draw_rectangle_rec(r, Rl::BLACK)
         end
-
-        # Rl.draw_rectangle_lines(x, y, w, h, Rl::MAGENTA)
-
-      },
-
-      # Circle window
-      ->(layer : UInt8, x : Float32, y : Float32, w : Float32, h : Float32) {
-        padding = w * Layer::DATA[layer][:window_padding]
-
-        Rl.draw_circle(x + w / 2.0, y + h / 2.0, (w/2.0) - padding, Rl::BLACK)
 
         type = Mineshift.perlin.prng_item(x.to_i, y.to_i, CIRCLE_TYPES, Seeds::CIRCLE_WINDOW_TYPE)
         window_color = Rl::WHITE
@@ -157,11 +189,11 @@ module Mineshift
             },
 
             ->(x : Float32, y : Float32, r : Float32) {
-              Rl.draw_circle(x, y, r*0.4*((layer + 1) / (Layer::MAX + 1)), window_color)
-            },
+              Rl.draw_circle_v(Rl::Vector2.new(x: x, y: y), r * 0.3, window_color)
+            }
           ] of Proc(Float32, Float32, Float32, Nil)
 
-          number_of_parts = Mineshift.perlin.prng_int(x.to_i, y.to_i, Windows::CIRCLE_MIN_PARTS.to_i, Windows::CIRCLE_MAX_PARTS.to_i + 1, Seeds::CIRCLE_WINDOW_STRUT_PARTS_NUMBER)
+          number_of_parts = Mineshift.perlin.prng_int(x.to_i, y.to_i, Window::CIRCLE_MIN_PARTS.to_i, Window::CIRCLE_MAX_PARTS.to_i + 1, Seeds::CIRCLE_WINDOW_STRUT_PARTS_NUMBER)
 
           number_of_parts.times do |z|
             part_index = Mineshift.perlin.prng_int(x.to_i, y.to_i, z, 0, parts.size, Seeds::CIRCLE_WINDOW_STRUT_PARTS)
@@ -170,12 +202,15 @@ module Mineshift
             parts.delete_at(part_index)
           end
         end
-
-        # Rl.draw_rectangle_lines(x, y, w, h, Rl::MAGENTA)
-
       },
 
     ] of Proc(UInt8, Float32, Float32, Float32, Float32, Nil)
+  end
+
+  module Rope
+    MIN_LENGTH = 0.5
+    MIN_THICKNESS = 3
+    MAX_MOVES = 30
   end
 
   # The textures used by each layer
@@ -185,7 +220,7 @@ module Mineshift
   class_getter camera = Rl::Camera2D.new
 
   # How much should we upscale/downscale the image
-  class_property scale_ratio = 4.0
+  class_property scale_ratio = 1.0
   # The virtual screen width
   class_property virtual_screen_width : Int32 = (1280/scale_ratio).to_i
   # The virtual screen height
@@ -203,7 +238,10 @@ module Mineshift
   # WHat color pallette we are using
   @@color_palette : Array(Rl::Color) = colors[0]
   # How much the y axis should be scrolled by. Changed by moving the analog stick or pressing up or down.
-  @@axis_movement = 0.0_f32
+  @@y_axis_movement = 0.0_f32
+  @@y_velocity = 0.0_f32
+
+  @@x_axis_position = 0.0_f32
 
   def self.setup(seed = 1_000_000)
     # destroy any old textures.
@@ -213,7 +251,7 @@ module Mineshift
     @@textures = StaticArray(Rl::Texture2D, Layer::MAX).new { Rl::Texture2D.new }
     @@camera = Rl::Camera2D.new
     @@camera.zoom = 1.0_f32
-    @@axis_movement = 0.0_f32
+    @@y_axis_movement = 0.0_f32
 
     @@perlin = PerlinNoise.new(seed)
 
@@ -305,18 +343,22 @@ module Mineshift
   private def self.make_bridges(layer, chasm_rects)
     bridge_bounding_boxes = [] of Rl::Rectangle
     bridge_paths = [] of Array(Rl::Vector2)
-    if layer < 2
+    if layer < Bridge::LAYER
       chasm_rects.each_with_index do |rect, rect_index|
         mask_center_point = Rl::Vector2.new(x: rect.x + rect.width/2.0_f32, y: rect.y + rect.height/2.0_f32)
-        bridge_angle = @@perlin.prng_int(layer, rect_index, -30, 30, Seeds::BRIDGE_ANGLE)
-        bridge_height = @@perlin.prng_int(layer, rect_index, (Layer::DATA[layer][:block_size]*0.20).to_i, (Layer::DATA[layer][:block_size]*0.75).to_i, Seeds::BRIDGE_HEIGHT)
+        bridge_angle = @@perlin.prng_int(layer, rect_index, -Bridge::MAX_ANGLE, Bridge::MAX_ANGLE, Seeds::BRIDGE_ANGLE)
+        bridge_height = @@perlin.prng_int(layer, rect_index, 
+          (Layer::DATA[layer][:block_size]*Bridge::MIN_HEIGHT_RATIO).to_i, 
+          (Layer::DATA[layer][:block_size]*Bridge::MAX_HEIGHT_RATIO).to_i, 
+          Seeds::BRIDGE_HEIGHT
+        )
 
         # Top point above the center of the bridge
         bridge_center_top_point = Rl::Vector2.new(x: mask_center_point.x, y: (mask_center_point.y - bridge_height/2.0_f32))
         # Bottom point above the center of the bridge
         bridge_center_bottom_point = Rl::Vector2.new(x: mask_center_point.x, y: (mask_center_point.y + bridge_height/2.0_f32))
 
-        bridge_collision_seg_size = Layer::DATA[layer][:block_size]*0.08
+        bridge_collision_seg_size = Layer::DATA[layer][:block_size] * Bridge::COLLISION_SEGMENT_RATIO
 
         bridge_ray = rotate_point(bridge_collision_seg_size, 0, 0, 0, bridge_angle)
         left_top_point = bridge_center_top_point
@@ -364,10 +406,19 @@ module Mineshift
                     bb.width = (right_top_point.x - left_top_point.x).to_i
                     bb.height = (left_bot_point.y - right_top_point.y).to_i
                   end
+                  
+                  # Do we have anything to even check collision to?
+                  if (bridge_bounding_boxes.empty? || 
+                    # Does this bridge collide with another bridge?
+                    !bridge_bounding_boxes.any? { |b_bb| Rl.check_collision_recs?(bb, b_bb) }) &&
+                    # Is the bridge entirely on the texture?
+                    !bridge_bounding_boxes.any? { |b_bb| (b_bb.y + b_bb.height) > layer_height(layer) || b_bb.y < 0}
 
-                  if bridge_bounding_boxes.empty? || !bridge_bounding_boxes.any? { |b_bb| Rl.check_collision_recs?(bb, b_bb) }
+
+                    # Add to the bounding boxes
                     bridge_bounding_boxes << bb
 
+                    # draw the bridge with triangles
                     Rl.draw_triangle(left_top_point, left_bot_point, right_bot_point, Rl::WHITE)
                     Rl.draw_triangle(left_top_point, right_bot_point, right_top_point, Rl::WHITE)
                   end
@@ -391,7 +442,7 @@ module Mineshift
       # Go through each potential beam location
       chasm_rects.each_with_index do |rect, rect_index|
         # Should we draw a beam here?
-        if @@perlin.prng_int(layer, rect_index, 0, 5, Seeds::BEAM) == 0
+        if @@perlin.prng_int(layer, rect_index, 0, Beam::CHANCE, Seeds::BEAM) == 0
           # How should the beam be positioned? Left or right?
           beam_side = @@perlin.prng_item(layer, rect_index, [true, false], Seeds::BEAM_SIDE) ? :left : :right
 
@@ -406,8 +457,8 @@ module Mineshift
           end
 
           # Beam height parameters and choose a beam height.
-          min_beam_height = (Layer::DATA[layer][:block_size]*0.20).to_i
-          max_beam_height = (Layer::DATA[layer][:block_size]*0.70).to_i
+          min_beam_height = (Layer::DATA[layer][:block_size]*Beam::MIN_HEIGHT_RATIO).to_i
+          max_beam_height = (Layer::DATA[layer][:block_size]*Beam::MAX_HEIGHT_RATIO).to_i
           beam_height = @@perlin.prng_int(layer, rect_index, min_beam_height, max_beam_height, Seeds::BEAM_HEIGHT)
 
           # Number of segments a beam should have.
@@ -454,7 +505,9 @@ module Mineshift
           end
 
           # Minimum line thickness for the beam
+          # TODO: This is stinky fix pls
           min_thickness = (3/scale_ratio).ceil.to_i - (layer == 2 ? 1 : 0)
+
           beam_height_ratio = beam_height / max_beam_height
 
           # Choose a line thickness
@@ -547,99 +600,150 @@ module Mineshift
   # Draw the windows on layers 1, 2, and 3
   private def self.make_windows(layer, chasm_rects)
     window_bounding_boxes = [] of Rl::Rectangle
-    window_ratio = 2.0
 
     # Largest possible window
     max_window_frame = Rl::Rectangle.new(
       x: 0,
       y: 0,
-      width: Layer::DATA[layer][:block_size] * window_ratio,
-      height: Layer::DATA[layer][:block_size] * window_ratio
+      width: Layer::DATA[layer][:block_size] * Window::RATIO,
+      height: Layer::DATA[layer][:block_size] * Window::RATIO
     )
 
-    if layer > 0
-      subdivided_squares = [] of Rl::Rectangle
+    subdivided_squares = [] of Rl::Rectangle
 
-      frame_rect = max_window_frame
-      until (frame_rect.y + frame_rect.height) >= layer_height(layer)
-        frame_rect.x = 0
-        # Check if frame_rects collide,
-        until chasm_rects.any? { |r| Rl.check_collision_recs?(frame_rect, r) }
-          raise "Something went wrong, frame_rect should collide before this happens" if frame_rect.x > virtual_screen_width
-          subdivided_squares << frame_rect
-          frame_rect.x += frame_rect.width
-        end
-
-        frame_rect.y += frame_rect.height
+    frame_rect = max_window_frame
+    until (frame_rect.y + frame_rect.height) >= layer_height(layer)
+      frame_rect.x = 0
+      # Check if frame_rects collide,
+      until chasm_rects.any? { |r| Rl.check_collision_recs?(frame_rect, r) }
+        raise "Something went wrong, frame_rect should collide before this happens" if frame_rect.x > virtual_screen_width
+        subdivided_squares << frame_rect
+        frame_rect.x += frame_rect.width
       end
 
-      frame_rect = max_window_frame
-      until (frame_rect.y + frame_rect.height) >= layer_height(layer)
-        frame_rect.x = virtual_screen_height - frame_rect.width
-        # Check if frame_rects collide,
-        until chasm_rects.any? { |r| Rl.check_collision_recs?(frame_rect, r) }
-          raise "Something went wrong, frame_rect should collide before this happens" if frame_rect.x < 0
-          subdivided_squares << frame_rect
-          frame_rect.x -= frame_rect.width
-        end
+      frame_rect.y += frame_rect.height
+    end
 
-        frame_rect.y += frame_rect.height
+    frame_rect = max_window_frame
+    until (frame_rect.y + frame_rect.height) >= layer_height(layer)
+      frame_rect.x = virtual_screen_width - frame_rect.width
+      # Check if frame_rects collide,
+      until chasm_rects.any? { |r| Rl.check_collision_recs?(frame_rect, r) }
+        raise "Something went wrong, frame_rect should collide before this happens" if frame_rect.x < 0
+        subdivided_squares << frame_rect
+        frame_rect.x -= frame_rect.width
       end
 
-      passes = 1
-      passes = 2 if layer == 3
+      frame_rect.y += frame_rect.height
+    end
 
-      if layer > 0
-        passes.times do |pass|
-          subdivided_squares = subdivided_squares.map do |square|
-            if @@perlin.prng_int(square.x.to_i, square.y.to_i, (pass+1) * (layer+1), 0, 10, Seeds::WINDOW_SUBDIVIDE) < 7
-              width = square.width/2.0
+    passes = 1
+    passes = 0  if layer == 0
+    passes = 2 if layer == 3
 
-              [
-                Rl::Rectangle.new(
-                  x: square.x,
-                  y: square.y,
-                  width: width,
-                  height: width
-                ),
+    passes.times do |pass|
+      subdivided_squares = subdivided_squares.map do |square|
+        if @@perlin.prng_int(square.x.to_i, square.y.to_i, (pass+1) * (layer+1), 0, 10, Seeds::WINDOW_SUBDIVIDE) < 7
+          width = square.width/2.0
 
-                Rl::Rectangle.new(
-                  x: square.x + width,
-                  y: square.y,
-                  width: width,
-                  height: width
-                ),
+          [
+            Rl::Rectangle.new(
+              x: square.x,
+              y: square.y,
+              width: width,
+              height: width
+            ),
 
-                Rl::Rectangle.new(
-                  x: square.x + width,
-                  y: square.y + width,
-                  width: width,
-                  height: width
-                ),
+            Rl::Rectangle.new(
+              x: square.x + width,
+              y: square.y,
+              width: width,
+              height: width
+            ),
 
-                Rl::Rectangle.new(
-                  x: square.x,
-                  y: square.y + width,
-                  width: width,
-                  height: width
-                ),
-              ]
-            else
-              square
-            end
-          end.flatten
+            Rl::Rectangle.new(
+              x: square.x + width,
+              y: square.y + width,
+              width: width,
+              height: width
+            ),
+
+            Rl::Rectangle.new(
+              x: square.x,
+              y: square.y + width,
+              width: width,
+              height: width
+            ),
+          ]
+        else
+          square
         end
-      end
+      end.flatten
+    end
 
-      subdivided_squares.each_with_index do |rect, rect_index|
-        if @@perlin.int(rect.x.to_i, rect.y.to_i, ((layer&+1) &* rect_index), Windows::CHANCE - 1, Windows::OUT_OF, Seeds::WINDOW) <= (Windows::CHANCE - 1)
-          @@perlin.prng_item(rect.x.to_i, rect.y.to_i, ((layer&+1) &* rect_index), Windows::ALL, Seeds::WINDOW_TYPE).call layer, rect.x, rect.y, rect.width, rect.height
-          window_bounding_boxes << rect
-        end
+    subdivided_squares.each_with_index do |rect, rect_index|
+      if @@perlin.int(rect.x.to_i, rect.y.to_i, ((layer&+1) &* rect_index), Window::CHANCE - 1, Window::OUT_OF, Seeds::WINDOW) <= (Window::CHANCE - 1)
+        @@perlin.prng_item(rect.x.to_i, rect.y.to_i, ((layer&+1) &* rect_index), Window::ALL, Seeds::WINDOW_TYPE).call layer, rect.x, rect.y, rect.width, rect.height
+        window_bounding_boxes << rect
       end
     end
 
     window_bounding_boxes
+  end
+
+  private def self.make_ropes(layer, chasm_rects, beam_rects)
+    rope_points = [] of Array(Rl::Vector2)
+    inverted_chasm_rects = chasm_rects.map do |r|
+      left = Rl::Rectangle.new(
+        x: 0,
+        y: r.y,
+        width: r.x,
+        height: r.height
+      )
+      right = Rl::Rectangle.new(
+        x: r.x + r.width,
+        y: r.y,
+        width: virtual_screen_width - (r.x + r.width),
+        height: r.height
+      )
+
+      [left, right]
+    end.flatten
+
+    collision_rects = inverted_chasm_rects + beam_rects
+
+    rope_segment_length = Layer::DATA[layer][:block_size]*0.2
+
+
+    collision_rects.each do |c_rect|
+      rope_x = c_rect.x + Layer::DATA[layer][:block_size]
+      rect_bottom = c_rect.y + c_rect.height - 1
+      until rope_x > (c_rect.x + c_rect.width - Layer::DATA[layer][:block_size])
+        rope_y = rect_bottom
+        moves = 0
+        until moves > Rope::MAX_MOVES || rope_y > layer_height(layer) || collision_rects.any?{|r| Rl.check_collision_point_rec?(Rl::Vector2.new(x: rope_x, y: rope_y + rope_segment_length), r)}
+          rope_y += rope_segment_length
+          moves += 1
+        end
+
+        if moves > 0
+          rope_points << [Rl::Vector2.new(x: rope_x, y: rect_bottom), Rl::Vector2.new(x: rope_x, y: rope_y)]
+        end
+
+        rope_x += rope_segment_length
+      end
+    end
+
+    rope_points.each do |rope|
+      if perlin.prng_int(rope[0].x.to_i, rope[0].y.to_i, layer.to_i, 0, 10, Seeds::ROPE).zero?
+        max_length = (rope[1].y - rope[0].y).to_i
+        min_length = (max_length * Rope::MIN_LENGTH).to_i
+        length = perlin.prng_int(rope[0].x.to_i, rope[0].y.to_i, layer.to_i, min_length, max_length, Seeds::ROPE_LENGTH)
+        thickness = perlin.prng_int(rope[0].x.to_i, rope[0].y.to_i, layer.to_i, Rope::MIN_THICKNESS, layer.to_i*3, Seeds::ROPE_THICKNESS)
+
+        Rl.draw_line_ex(rope[0], Rl::Vector2.new(x: rope[0].x, y: rope[0].y + length), thickness, Rl::WHITE)
+      end
+    end
   end
 
   # Render all the layer's textures
@@ -672,6 +776,8 @@ module Mineshift
     beam_rects = make_beams(layer, chasm_rects)
     window_rects = make_windows(layer, chasm_rects)
 
+    make_ropes(layer, chasm_rects, beam_rects) if layer > 1
+
     Rl.end_mode_2d
     Rl.end_texture_mode
 
@@ -698,14 +804,14 @@ module Mineshift
     Rl.begin_mode_2d(@@camera)
 
     # Draw each layer
-    Layer::MAX.times do |x|
+    Layer::MAX.times do |layer|
       # Offset it because for some reason there is "perlin striping" showing similarities in the different  layers
-      layer_offset = (666 * x) + 10.0/scale_ratio + ((5.0 / scale_ratio) * ((x + 1) ** x) * (@@axis_movement * 0.05))
+      layer_offset = 10.0/scale_ratio + ((5.0 / scale_ratio) * ((layer + 1) ** layer) * (@@y_axis_movement * 0.05))
 
       # Draw the texture so when scrolling it will move the y of the source rect, causing the texture to repeat.
       Rl.draw_texture_pro(
-        @@textures[x],
-        Rl::Rectangle.new(x: 0.0_f32, y: -layer_offset, width: @@virtual_screen_width, height: -@@virtual_screen_height),
+        @@textures[layer],
+        Rl::Rectangle.new(x: @@x_axis_position * (layer+1), y: -layer_offset, width: @@virtual_screen_width, height: -@@virtual_screen_height),
         Rl::Rectangle.new(x: 0, y: 0, width: screen_width, height: screen_height),
         Rl::Vector2.new,
         0.0_f32,
@@ -728,7 +834,7 @@ module Mineshift
   def self.draw_help
     text_size = 20
     y_spacing = 5
-    title = "#{" " * 10}HELP#{" " * 10}"
+    title = "#{"   " * 10}HELP#{"   " * 10}"
     text_length = Rl.measure_text(title, text_size)
 
     x = (screen_width / 2.0) - (text_length/2.0)
@@ -740,14 +846,13 @@ module Mineshift
     Rl.draw_rectangle_lines(x - (text_size/2.0), y - (text_size/2.0), w, h, Rl::BLACK)
     Rl.draw_text(title, x, y, text_size, Rl::BLACK)
 
-    Rl.draw_text("Left : Next Seed", x, y + (text_size + y_spacing), text_size, Rl::BLACK)
-    Rl.draw_text("Right : Prev Seed", x, y + (text_size + y_spacing) * 2, text_size, Rl::BLACK)
+    Rl.draw_text("A : Next Seed", x, y + (text_size + y_spacing), text_size, Rl::BLACK)
+    Rl.draw_text("D : Prev Seed", x, y + (text_size + y_spacing) * 2, text_size, Rl::BLACK)
     Rl.draw_text("Space : Random Seed", x, y + (text_size + y_spacing) * 3, text_size, Rl::BLACK)
 
-    Rl.draw_text("Mouse Wheel Up", x, y + (text_size + y_spacing) * 6, text_size, Rl::BLACK)
-    Rl.draw_text("Up : Scroll Up", x, y + (text_size + y_spacing) * 7, text_size, Rl::BLACK)
-    Rl.draw_text("Mouse Wheel Down", x, y + (text_size + y_spacing) * 9, text_size, Rl::BLACK)
-    Rl.draw_text("Down : Scroll Down", x, y + (text_size + y_spacing) * 10, text_size, Rl::BLACK)
+    Rl.draw_text("Mouse Wheel Up : Scroll Up", x, y + (text_size + y_spacing) * 6, text_size, Rl::BLACK)
+    Rl.draw_text("Mouse Wheel Down : Scroll Down", x, y + (text_size + y_spacing) * 7, text_size, Rl::BLACK)
+    Rl.draw_text("Left Right : Pan", x, y + (text_size + y_spacing) * 8, text_size, Rl::BLACK)
     Rl.draw_text("Shift : Go Faster", x, y + (text_size + y_spacing) * 12, text_size, Rl::BLACK)
     Rl.draw_text("Q : Show Seed #", x, y + (text_size + y_spacing) * 14, text_size, Rl::BLACK)
   end
@@ -799,9 +904,6 @@ module Mineshift
     Rl.toggle_fullscreen
     sleep 0.1
 
-    
-    puts "#{Rl.get_monitor_width(MONITOR)}x#{Rl.get_monitor_height(MONITOR)}"
-
     Rl.set_window_size(Rl.get_monitor_width(MONITOR), Rl.get_monitor_height(MONITOR))
     @@virtual_screen_width = (Rl.get_monitor_width(MONITOR)/scale_ratio).to_i
     @@virtual_screen_height = (Rl.get_monitor_height(MONITOR)/scale_ratio).to_i
@@ -814,8 +916,19 @@ module Mineshift
       speed_mod = (raw_speed_mod > 0 ? (raw_speed_mod + 1) * 2.0 : 1)
       up_arrow_movement = Rl.key_down?(Rl::KeyboardKey::Up) ? -1 : 0
       down_arrow_movement = Rl.key_down?(Rl::KeyboardKey::Down) ? 1 : 0
+      @@y_velocity += ((Rl.get_gamepad_axis_movement(0, Rl::GamepadAxis::LeftY) + up_arrow_movement + down_arrow_movement + (Rl.get_mouse_wheel_move * -2)) * speed_mod) * 0.25
+      @@y_velocity *= Y_FRICTION
 
-      @@axis_movement += ((Rl.get_gamepad_axis_movement(0, Rl::GamepadAxis::LeftY) + up_arrow_movement + down_arrow_movement + (Rl.get_mouse_wheel_move * -2)) * speed_mod)
+      @@y_axis_movement += @@y_velocity
+
+      max_x_movement = (virtual_screen_width * MAX_X_SCREEN_RATIO)
+
+      @@x_axis_position += Rl.get_gamepad_axis_movement(0, Rl::GamepadAxis::LeftX) * X_MOVEMENT_FACTOR + (Rl.key_down?(Rl::KeyboardKey::Left) ? -X_MOVEMENT_FACTOR : 0) + (Rl.key_down?(Rl::KeyboardKey::Right) ? X_MOVEMENT_FACTOR  : 0)
+      # Clamp x position
+      @@x_axis_position = (@@x_axis_position > max_x_movement ? max_x_movement : @@x_axis_position).to_f32
+      @@x_axis_position = (@@x_axis_position < -max_x_movement ? -max_x_movement : @@x_axis_position).to_f32
+
+      @@x_axis_position *= 0.9
 
       Mineshift.draw
 
@@ -828,7 +941,7 @@ module Mineshift
       end
 
       # Increment seed when pressing right or RB
-      if Rl.key_pressed?(Rl::KeyboardKey::Right) || Rl.gamepad_button_pressed?(0, 11)
+      if Rl.key_pressed?(Rl::KeyboardKey::A) || Rl.gamepad_button_pressed?(0, 11)
         seed &+= 1
 
         Mineshift.setup(seed)
@@ -836,7 +949,7 @@ module Mineshift
       end
 
       # Decrement seed when pressing left or LB
-      if Rl.key_pressed?(Rl::KeyboardKey::Left) || Rl.gamepad_button_pressed?(0, 9)
+      if Rl.key_pressed?(Rl::KeyboardKey::D) || Rl.gamepad_button_pressed?(0, 9)
         seed &-= 1
 
         Mineshift.setup(seed)
