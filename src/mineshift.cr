@@ -236,7 +236,9 @@ module Mineshift
   class_getter perlin = PerlinNoise.new(1_000_000)
 
   # WHat color pallette we are using
-  @@color_palette : Array(Rl::Color) = colors[0]
+  @@color_palette : Array(Rl::Color) = [] of Rl::Color
+  @@color_palette_key : Symbol = :none
+
   # How much the y axis should be scrolled by. Changed by moving the analog stick or pressing up or down.
   @@y_axis_movement = 0.0_f32
   @@y_velocity = 0.0_f32
@@ -256,7 +258,9 @@ module Mineshift
     @@perlin = PerlinNoise.new(seed)
 
     # Choose a color palette
-    @@color_palette = @@perlin.item(0, colors, Seeds::COLOR)
+    @@color_palette_key = @@perlin.item(0, colors.keys, Seeds::COLOR)
+    @@color_palette = colors[@@color_palette_key]
+
     render_layers
   end
 
@@ -781,7 +785,6 @@ module Mineshift
     Rl.end_mode_2d
     Rl.end_texture_mode
 
-
     # Make an image out of our render texture
     image = Rl.load_image_from_texture(render_texture.texture)
 
@@ -795,6 +798,36 @@ module Mineshift
     # Clean up the old data
     Rl.unload_image(image)
     Rl.unload_render_texture(render_texture)
+  end
+
+  private def self.swap_palettes(pallete_offset)
+    old_palette = @@color_palette
+    
+    index = 0
+    if index = colors.keys.index(@@color_palette_key)
+      index += pallete_offset
+      index %= colors.keys.size
+      index = colors.keys.size if index < 0
+      
+      @@color_palette_key = colors.keys[index]
+    end
+    @@color_palette = colors[@@color_palette_key]
+
+    @@textures.each_with_index do |texture, layer|
+      # Make an image out of our render texture
+      image = Rl.load_image_from_texture(texture)
+
+      # Replace white with the color of the layer
+      Rl.image_color_replace(pointerof(image), old_palette[layer + 1], @@color_palette[layer + 1])
+      # Reload the texture from the image
+      @@textures[layer] = Rl.load_texture_from_image(image)
+
+      # Clean up the old data
+      Rl.unload_image(image)
+      Rl.unload_texture(texture)
+
+      draw_loading(layer * 0.2_f32, "Swapping Colors : #{layer}")
+    end
   end
 
   # Draw the scene
@@ -853,22 +886,30 @@ module Mineshift
     Rl.draw_text("Mouse Wheel Up : Scroll Up", x, y + (text_size + y_spacing) * 6, text_size, Rl::BLACK)
     Rl.draw_text("Mouse Wheel Down : Scroll Down", x, y + (text_size + y_spacing) * 7, text_size, Rl::BLACK)
     Rl.draw_text("Left Right : Pan", x, y + (text_size + y_spacing) * 8, text_size, Rl::BLACK)
+    Rl.draw_text("O P : Cycle Colors", x, y + (text_size + y_spacing) * 11, text_size, Rl::BLACK)
     Rl.draw_text("Shift : Go Faster", x, y + (text_size + y_spacing) * 12, text_size, Rl::BLACK)
     Rl.draw_text("Q : Show Seed #", x, y + (text_size + y_spacing) * 14, text_size, Rl::BLACK)
   end
 
   def self.draw_seed
     text_size = 20
-    text_length = Rl.measure_text(perlin.seed.to_s, text_size)
+    seed_text = "#{perlin.seed}"
+    seed_text_length = Rl.measure_text(seed_text, text_size)
 
-    x = (screen_width / 2.0) - (text_length/2.0)
+    color_text = "#{@@color_palette_key}(#{colors.keys.index(@@color_palette_key)})"
+    color_text_length = Rl.measure_text(color_text, text_size)
+
+    text_length = (seed_text_length > color_text_length ? seed_text_length : color_text_length)
+
+    x = (screen_width / 2.0) - (text_length / 2.0)
     y = (screen_height * 0.9)
-    w = text_length + (text_size)
-    h = text_size + (text_size)
+    w = text_length + text_size
+    h = text_size * 3
 
     Rl.draw_rectangle(x - (text_size/2.0), y - (text_size/2.0), w, h, Rl::WHITE)
     Rl.draw_rectangle_lines(x - (text_size/2.0), y - (text_size/2.0), w, h, Rl::BLACK)
-    Rl.draw_text(perlin.seed.to_s, x, y, text_size, Rl::BLACK)
+    Rl.draw_text(seed_text, (screen_width / 2.0) - (seed_text_length / 2.0), y, text_size, Rl::BLACK)
+    Rl.draw_text(color_text, (screen_width / 2.0) - (color_text_length / 2.0), y + text_size + (text_size / 2), text_size, Rl::BLACK)
   end
 
   # Draw a loading screen.
@@ -935,7 +976,6 @@ module Mineshift
       # Randomize the seed when pressing space or A
       if Rl.key_pressed?(Rl::KeyboardKey::Space) || Rl.gamepad_button_pressed?(0, 7)
         seed = rand(1_000_000)
-
         Mineshift.setup(seed)
         Rl.set_window_title("Mineshift(#{seed})")
       end
@@ -943,7 +983,6 @@ module Mineshift
       # Increment seed when pressing right or RB
       if Rl.key_pressed?(Rl::KeyboardKey::A) || Rl.gamepad_button_pressed?(0, 11)
         seed &+= 1
-
         Mineshift.setup(seed)
         Rl.set_window_title("Mineshift(#{seed})")
       end
@@ -951,7 +990,6 @@ module Mineshift
       # Decrement seed when pressing left or LB
       if Rl.key_pressed?(Rl::KeyboardKey::D) || Rl.gamepad_button_pressed?(0, 9)
         seed &-= 1
-
         Mineshift.setup(seed)
         Rl.set_window_title("Mineshift(#{seed})")
       end
@@ -967,6 +1005,15 @@ module Mineshift
         Mineshift.show_help = true
       else
         Mineshift.show_help = false
+      end
+
+      if Rl.key_pressed?(Rl::KeyboardKey::O) || Rl.gamepad_button_pressed?(0, 4)
+        swap_palettes(-1)
+      end
+
+      if Rl.key_pressed?(Rl::KeyboardKey::P) || Rl.gamepad_button_pressed?(0, 2)
+        swap_palettes(1)
+
       end
     end
 
