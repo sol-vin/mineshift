@@ -800,6 +800,7 @@ module Mineshift
     Rl.unload_render_texture(render_texture)
   end
 
+  # Swaps the palettes by converting to an image and then back to a texture
   private def self.swap_palettes(pallete_offset)
     old_palette = @@color_palette
     
