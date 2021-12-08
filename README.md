@@ -14,9 +14,10 @@ https://www.youtube.com/watch?v=26PsrWRqvJo&ab_channel=IanRash
 ## Usage
 
 1. Install [raylib](https://github.com/sol-vin/raylib-cr#installation)
-2. `shards install`
-3. `crystal run ./src/mineshift`
-
+2. Install Crystal
+3. `shards install`
+4. `crystal build ./src/mineshift`
+5. Enjoy with a controller preferably!
 ## Development
 
 IDK
