@@ -1,6 +1,6 @@
 # Mineshift
 
-An interactive art piece. Explore an endless chasm up and down. See bridges, beams, and other features
+An interactive art piece. Explore an endless chasm up and down. See bridges, beams, and other features. You can use the keyboard or a controller to navigate. The controller is better.
 
 https://www.youtube.com/watch?v=26PsrWRqvJo&ab_channel=IanRash
 ![20211208043843_1](https://user-images.githubusercontent.com/1298501/145210187-cf9caeb4-34d1-45a5-b6b7-c74bfa0517c4.jpg)
