@@ -132,7 +132,7 @@ module Mineshift
         frame_rect.x = 0
         # Check if frame_rects collide,
         until chasm_rects.any? { |r| Rl.check_collision_recs?(frame_rect, r) }
-          raise "Something went wrong, frame_rect should collide before this happens" if frame_rect.x > Mineshift.virtual_screen_width
+          raise "Something went wrong, frame_rect should collide before this happens" if frame_rect.x > Mineshift.screen_width
           subdivided_squares << frame_rect
           frame_rect.x += frame_rect.width
         end
@@ -142,7 +142,7 @@ module Mineshift
 
       frame_rect = max_window_frame
       until (frame_rect.y + frame_rect.height) >= Layer.height(layer)
-        frame_rect.x = Mineshift.virtual_screen_width - frame_rect.width
+        frame_rect.x = Mineshift.screen_width - frame_rect.width
         # Check if frame_rects collide,
         until chasm_rects.any? { |r| Rl.check_collision_recs?(frame_rect, r) }
           raise "Something went wrong, frame_rect should collide before this happens" if frame_rect.x < 0

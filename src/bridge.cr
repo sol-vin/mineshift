@@ -29,7 +29,7 @@ module Mineshift
         bridge_ray = Math.rotate_point(bridge_collision_seg_size, 0, 0, 0, bridge_angle)
         left_top_point = bridge_center_top_point
 
-        while left_top_point.x > 0 && left_top_point.x < Mineshift.virtual_screen_width &&
+        while left_top_point.x > 0 && left_top_point.x < Mineshift.screen_width &&
               left_top_point.y > 0 && left_top_point.y < Layer.height(layer) &&
               chasm_rects.any? { |cr| Rl.check_collision_point_rec?(left_top_point, cr) }
           left_top_point = Rl::Vector2.new(
@@ -45,7 +45,7 @@ module Mineshift
 
             if !chasm_rects.any? { |cr| Rl.check_collision_point_rec?(left_bot_point, cr) }
               right_top_point = bridge_center_top_point
-              while right_top_point.x > 0 && right_top_point.x < Mineshift.virtual_screen_width &&
+              while right_top_point.x > 0 && right_top_point.x < Mineshift.screen_width &&
                     right_top_point.y > 0 && right_top_point.y < (Layer.height(layer)) &&
                     chasm_rects.any? { |cr| Rl.check_collision_point_rec?(right_top_point, cr) }
                 right_top_point = Rl::Vector2.new(

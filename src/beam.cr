@@ -85,7 +85,7 @@ module Mineshift
 
             # Minimum line thickness for the beam
             # TODO: This is stinky fix pls
-            min_thickness = (3/Mineshift.scale_ratio).ceil.to_i - (layer == 2 ? 1 : 0)
+            min_thickness = 3.ceil.to_i - (layer == 2 ? 1 : 0)
 
             beam_height_ratio = beam_height / max_beam_height
 

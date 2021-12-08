@@ -31,7 +31,7 @@ module Mineshift
         right = Rl::Rectangle.new(
           x: r.x + r.width,
           y: r.y,
-          width: Mineshift.virtual_screen_width - (r.x + r.width),
+          width: Mineshift.screen_width - (r.x + r.width),
           height: r.height
         )
   
